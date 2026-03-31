@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../SheredPCVaia"
+		},
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "Progetto statistiche Tennis"
+	}
+}

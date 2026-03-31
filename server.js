@@ -3,28 +3,50 @@ const Database = require('better-sqlite3');
 const cors = require('cors'); 
 const axios = require('axios');
 const path = require('path');
-
+const fs = require('fs'); // Aggiunto per permettere al server di leggere le cartelle
 const http = require('http');
 
 const app = express();
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE'] }));
 app.use(express.json());
 
-// Rotta esplicita per la homepage - PRIMA di express.static
-app.get('/', (req, res) => {
-    res.sendFile('index.html', { root: __dirname }, (err) => {
-        if (err) { console.error('sendFile error:', err); res.status(500).send('Errore: ' + err.message); }
-    });
-});
+// --- 1. RICERCA AUTOMATICA DELLA CARTELLA ANGULAR ---
+// Questo blocco di codice fa il lavoro "sporco" per te.
+// Cerca in automatico la cartella corretta generata da Angular dentro "dist"
+let distPath = path.join(__dirname, 'dist'); 
 
-app.use(express.static(path.join(__dirname)));
+try {
+    const baseDist = path.join(__dirname, 'dist');
+    if (fs.existsSync(baseDist)) {
+        // Trova la prima sottocartella dentro dist (es. 'progetto-tennis')
+        const cartelle = fs.readdirSync(baseDist, { withFileTypes: true })
+                           .filter(dirent => dirent.isDirectory())
+                           .map(dirent => dirent.name);
+        
+        if (cartelle.length > 0) {
+            const nomeProgetto = cartelle[0];
+            // Angular 17+ spesso crea un'ulteriore cartella 'browser'
+            const pathBrowser = path.join(baseDist, nomeProgetto, 'browser');
+            if (fs.existsSync(pathBrowser)) {
+                distPath = pathBrowser;
+            } else {
+                distPath = path.join(baseDist, nomeProgetto);
+            }
+        }
+    }
+} catch (err) {
+    console.log("⚠️ Attenzione: Non sono riuscito a scansionare la cartella dist.");
+}
 
-// SQLITE DATABASE CONNECTION (PORTABLE FILE) - better-sqlite3
+// Diciamo a Express di usare la cartella trovata automaticamente
+app.use(express.static(distPath));
+
+
+// --- SQLITE DATABASE CONNECTION ---
 const dbPath = path.join(__dirname, 'tennis_db.sqlite');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
-// Helper sincroni wrappati in async per compatibilità con il resto del codice
 const dbQuery = async (sql, params = []) => db.prepare(sql).all(...params);
 const dbRun = async (sql, params = []) => {
     const result = db.prepare(sql).run(...params);
@@ -32,7 +54,7 @@ const dbRun = async (sql, params = []) => {
 };
 const dbGet = async (sql, params = []) => db.prepare(sql).get(...params);
 
-// INITIALIZE DATABASE STRUCTURE
+// --- INITIALIZE DATABASE STRUCTURE ---
 function setupDB() {
     try {
         db.exec(`CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, lcn INTEGER UNIQUE, name TEXT NOT NULL, provider_type TEXT, is_tennis_active BOOLEAN DEFAULT 0)`);
@@ -48,7 +70,6 @@ function setupDB() {
         try { db.exec(`ALTER TABLE matches ADD COLUMN away_score INTEGER`); } catch(e) {}
         try { db.exec(`ALTER TABLE matches ADD COLUMN status TEXT`); } catch(e) {}
         
-        // AUTO-CLEANUP DUPLICATI (Phase 10)
         try { db.exec(`DELETE FROM matches WHERE id NOT IN (SELECT MIN(id) FROM matches GROUP BY player_it_id, opponent_id, match_date)`); } catch(e) {}
         
         db.exec(`CREATE TABLE IF NOT EXISTS bets (
@@ -56,20 +77,17 @@ function setupDB() {
             selection TEXT, market_odd NUMERIC, probability NUMERIC, roi NUMERIC, 
             stake_euro NUMERIC, expected_profit NUMERIC, note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
-        console.log("🎾 SQLITE: Database pronto e portatile (better-sqlite3).");
+        console.log("🎾 SQLITE: Database pronto e portatile.");
     } catch (e) {
         console.error("❌ ERRORE SETUP DB:", e.message);
     }
 }
-
 setupDB();
 
 const TRACKED_PLAYERS = [
-    // ATP Top & Growing
     "sinner", "musetti", "cobolli", "darderi", "arnaldi", "sonego", "berrettini", "fognini",
     "nardi", "bellucci", "passaro", "gigante", "zeppieri", "napolitano", "vavassori", "bolelli",
     "maestrelli", "pellegrino", "agamenone", "travaglia", "gaio", "cecchinato", "caruso",
-    // WTA Top & Growing
     "paolini", "cocciaretto", "bronzetti", "errani", "trevisan", "stefanini", "brancaccio", 
     "pigato", "pedone", "rosatello"
 ];
@@ -82,6 +100,7 @@ async function getDynamicRank(teamId) {
     } catch (e) { return 150; }
 }
 
+// --- API ROUTES ---
 app.get('/api/reset-db', async (req, res) => {
     try {
         await dbRun('DELETE FROM matches');
@@ -107,7 +126,6 @@ async function performSync(targetDate) {
                 const rH = await getDynamicRank(match.homeTeam.id);
                 const rA = await getDynamicRank(match.awayTeam.id);
                 
-                // SQLite Insert or Ignore approach
                 await dbRun('INSERT OR IGNORE INTO players (name) VALUES (?)', [hName]);
                 const p1 = await dbGet('SELECT id FROM players WHERE name = ?', [hName]);
                 await dbRun('INSERT OR IGNORE INTO players (name) VALUES (?)', [aName]);
@@ -182,7 +200,6 @@ async function performSync(targetDate) {
                 const awayScore = match.awayScore?.display || match.awayScore?.current || 0;
                 const matchStatus = match.status?.type || 'notstarted';
                 
-                // EVITIAMO DUPLICATI (Cleanup prima di inserire lo stesso match di un'altra data target)
                 await dbRun(`DELETE FROM matches WHERE player_it_id = ? AND opponent_id = ? AND match_date = ?`, [p1.id, p2.id, matchDateIso]);
 
                 await dbRun(`
@@ -284,14 +301,18 @@ app.get('/api/export-matches', async (req, res) => {
     } catch (e) { res.status(500).send("Errore export"); }
 });
 
+// --- 2. GESTIONE DELLA NAVIGAZIONE (FALLBACK) ---
+// Gestisce l'errore Not Found: rimanda le richieste sconosciute ad Angular
+app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+});
+
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
         console.error(`\n❌ ERRORE: La porta ${PORT} è già occupata!`);
-        console.error(`👉 Il server è probabilmente già attivo in un'altra finestra.`);
-        console.error(`👉 Chiudi le altre finestre di comando (nero) e riprova.\n`);
         process.exit(1);
     } else {
         console.error('❌ ERRORE SERVER:', e.message);
@@ -300,6 +321,7 @@ server.on('error', (e) => {
 
 server.listen(PORT, () => {
     console.log(`\n##################################################`);
-    console.log(`🎾 TENNIS PORTABLE V6.0: Attivo su http://localhost:${PORT}`);
+    console.log(`🎾 TENNIS PORTABLE V6.0: Attivo su porta ${PORT}`);
+    console.log(`📂 Cartella frontend agganciata automaticamente: ${distPath}`);
     console.log(`##################################################\n`);
 });
