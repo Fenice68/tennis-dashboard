@@ -9,12 +9,15 @@ const http = require('http');
 const app = express();
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE'] }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
 
-// Rotta esplicita per la homepage (necessaria per Express 5)
+// Rotta esplicita per la homepage - PRIMA di express.static
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile('index.html', { root: __dirname }, (err) => {
+        if (err) { console.error('sendFile error:', err); res.status(500).send('Errore: ' + err.message); }
+    });
 });
+
+app.use(express.static(path.join(__dirname)));
 
 // SQLITE DATABASE CONNECTION (PORTABLE FILE) - better-sqlite3
 const dbPath = path.join(__dirname, 'tennis_db.sqlite');
