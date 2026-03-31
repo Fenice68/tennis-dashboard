@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Tennis Italia Ver 6.0 - PRO METEO & RANK</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #0c0c0c; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 1450px; margin: auto; }
+        h1 { color: #2ecc71; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; }
+        
+        .main-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .table-section { flex: 3; }
+        .sidebar-section { flex: 1; position: sticky; top: 20px; }
+
+        /* --- CSS RANKING BLINDATO --- */
+        .rank-badge {
+            background-color: #004a99; /* Blu per l'azzurro */
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .rank-badge-alt {
+            background-color: #444; /* Grigio per l'avversario */
+            color: #bbb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 5px;
+            display: inline-block;
+        }
+
+        .player-cell { padding: 10px !important; }
+        .azzurro-name { font-size: 1.1em; margin-bottom: 2px; }
+        .opponent-name { color: #aaa; font-size: 0.9em; }
+
+        /* --- RESTO DELLO STILE --- */
+        .channel-logo-box { display: inline-flex; align-items: center; gap: 8px; font-weight: bold; }
+        .channel-badge { width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; }
+
+        .weather-container { display: flex; align-items: center; gap: 12px; }
+        .weather-icon { font-size: 1.6em; cursor: help; }
+        .weather-text { font-size: 0.8em; color: #888; }
+
+        .azzurri-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 25px; }
+        .player-mini-card { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 12px; text-align: center; border-top: 3px solid #2ecc71; min-height: 80px; }
+        
+        .sidebar-card { background: #1a1a1a; border-radius: 8px; padding: 20px; border: 1px solid #333; }
+        .tech-row { margin-bottom: 12px; padding: 15px; background: #222; border-radius: 8px; border-left: 4px solid #3498db; }
+        .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8em; }
+        .val-num { color: #2ecc71; font-family: monospace; font-weight: bold; }
+
+        .odd-danger { color: #e74c3c !important; font-weight: bold; }
+        .odd-warning { color: #f1c40f !important; font-weight: bold; }
+        .odd-success { color: #2ecc71 !important; font-weight: bold; }
+
+        .stats-bar { display: flex; gap: 30px; margin-bottom: 20px; background: #1a1a1a; padding: 15px; border-radius: 8px; border-left: 5px solid #2ecc71; align-items: center; }
+        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+        th { background: #252525; color: #888; text-align: left; padding: 15px; text-transform: uppercase; font-size: 0.75em; }
+        td { padding: 15px; border-bottom: 1px solid #333; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7em; font-weight: bold; color: white; }
+        
+        .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 0.9em; }
+        .btn-blue { background: #3498db; color: white; }
+        .btn-orange { background: #e67e22; color: white; }
+        .btn-purple { background: #8e44ad; color: white; }
+        
+        .value-bet { background-color: rgba(46, 204, 113, 0.1); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎾 Dashboard Tennis Italia <small style="font-size: 0.4em; color: #666; margin-left: auto;">Ver 6.0 PRO RANK</small></h1>
+
+    <div class="stats-bar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="font-size: 0.85em; color: #aaa;">PUNTATA (€):</label>
+            <input type="number" id="base-stake" value="100" oninput="updateDynamicStats()" style="background:#252525; border:1px solid #333; color:#2ecc71; padding:8px; width:80px; font-weight:bold;">
+        </div>
+        <div class="stat-item">Profitto Stimato: <span id="total-profit" style="color: #2ecc71; font-weight: bold;">€ 0.00</span></div>
+        <div class="stat-item">ROI Atteso: <span id="roi-percent" style="color: #f1c40f; font-weight: bold;">0%</span></div>
+    </div>
+
+    <div id="azzurri-bar" class="azzurri-grid"></div>
+
+    <div class="main-layout">
+        <div class="table-section">
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="date" id="match-date" onchange="fetchMatchs()" style="background:#252525; color:white; border:1px solid #333; padding:10px; border-radius:5px;">
+                <button class="btn btn-blue" onclick="fetchMatchs()">🔄 Aggiorna</button>
+                <button class="btn btn-orange" id="sync-btn" onclick="syncOdds()">📡 Sync Giorno</button>
+                <button class="btn btn-purple" id="sync-week-btn" onclick="syncWeek()">📅 Sync Settimana</button>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Canale/LCN</th>
+                        <th>Match & Meteo</th>
+                        <th>Quota</th>
+                        <th>Prob.</th>
+                        <th>Gap Score</th>
+                        <th>Stato</th>
+                    </tr>
+                </thead>
+                <tbody id="match-body"></tbody>
+            </table>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-card">
+                <div style="color:#f1c40f; font-weight:bold; margin-bottom:15px; text-transform:uppercase; font-size:0.8em;">📊 Dettagli Tecnici</div>
+                <div id="tech-details-body"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:5000";
+    let currentMatchData = []; 
+
+    function getChannelUI(name, lcn) {
+        let color = "#444";
+        if (name.includes("Rai")) color = "#005596";
+        else if (name.includes("SuperTennis")) color = "#e30613";
+        else if (name.includes("Canale 5")) color = "#0091d3";
+        
+        return `<div class="channel-logo-box">
+                    <div class="channel-badge" style="background:${color}">${name[0]}</div>
+                    <div><span style="color:${color}">${name}</span><br><small style="color:#666">LCN ${lcn}</small></div>
+                </div>`;
+    }
+
+    function getWeather(wind, hum) {
+        if (hum > 75) return {i: '🌧️', t: 'Pioggia'};
+        if (wind > 18) return {i: '💨', t: 'Vento forte'};
+        if (hum > 60) return {i: '⛅', t: 'Nuvoloso'};
+        return {i: '☀️', t: 'Sereno'};
+    }
+
+    async function fetchMatchs() {
+        try {
+            const dateInput = document.getElementById('match-date').value;
+            const response = await fetch(`${API_URL}/api/matchs?date=${dateInput}`);
+            const data = await response.json();
+            currentMatchData = Array.isArray(data) ? data : []; 
+            
+            const body = document.getElementById('match-body');
+            const techBody = document.getElementById('tech-details-body');
+            body.innerHTML = ''; techBody.innerHTML = '';
+
+            if (currentMatchData.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:#666;">📭 Nessun match salvato. Clicca Sync.</td></tr>';
+                return;
+            }
+
+            currentMatchData.forEach(m => {
+                const weather = getWeather(m.wind_speed, m.humidity);
+                const mOdd = parseFloat(m.market_odd || 0);
+                const gap = parseFloat(m.k_rate || 0);
+                let oddClass = mOdd < 1.50 ? 'odd-danger' : (mOdd > 2.00 ? 'odd-success' : 'odd-warning');
+
+                body.innerHTML += `
+                    <tr class="${gap > 0.2 ? 'value-bet' : ''}">
+                        <td>${getChannelUI(m.tv, m.lcn_channel)}</td>
+                        <td class="player-cell">
+                            <div class="weather-container">
+                                <span class="weather-icon" title="${weather.t}">${weather.i}</span>
+                                <div>
+                                    <div class="azzurro-name">
+                                        <b>${m.azzurro}</b> <span class="rank-badge">#${m.home_rank > 0 ? m.home_rank : 'N/D'}</span>
+                                    </div>
+                                    <div class="opponent-name">
+                                        vs ${m.avversario} <span class="rank-badge-alt">#${m.away_rank > 0 ? m.away_rank : 'N/D'}</span>
+                                    </div>
+                                    <span class="weather-text">${m.wind_speed}km/h | ${m.humidity}% umid.</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="${oddClass}">${mOdd.toFixed(2)}</td>
+                        <td>${(m.f_rate * 100).toFixed(1)}%</td>
+                        <td style="color:#2ecc71; font-weight:bold;">${gap.toFixed(3)}</td>
+                        <td><span class="badge" style="background:${gap > 0.3 ? '#e67e22' : (gap > 0.2 ? '#27ae60' : '#333')};">${gap > 0.3 ? '🚀 SUPER' : (gap > 0.2 ? '🔥 OK' : 'WAIT')}</span></td>
+                    </tr>`;
+
+                techBody.innerHTML += `
+                    <div class="tech-row">
+                        <b style="font-size:0.9em;">${m.azzurro} (#${m.home_rank})</b>
+                        <div class="tech-grid">
+                            <div>Vento: <span class="val-num">${m.wind_speed}k/h</span></div>
+                            <div>Umid: <span class="val-num">${m.humidity}%</span></div>
+                            <div>Trend: <b style="color:${m.market_odd < m.opening_odd ? '#2ecc71' : '#e74c3c'}">${m.market_odd < m.opening_odd ? 'DROP ↓' : 'UP ↑'}</b></div>
+                        </div>
+                    </div>`;
+            });
+            updateDynamicStats();
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchNextCommitments() {
+        const container = document.getElementById('azzurri-bar');
+        try {
+            const response = await fetch(`${API_URL}/api/next-commitments`);
+            const data = await response.json();
+            container.innerHTML = data.map(item => {
+                const dateStr = item.date ? new Date(item.date).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'}) : '';
+                return `
+                <div class="player-mini-card">
+                    <b style="font-size:0.9em;">${item.player}</b>
+                    <span style="color:#f1c40f; font-size:0.75em; display:block;">vs ${item.opponent !== "..." ? item.opponent.split(' ').pop() : '---'}</span>
+                    <small style="color:#2ecc71; font-size:0.7em;">${dateStr} | ${item.tv}</small>
+                </div>`;
+            }).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function syncOdds() {
+        const btn = document.getElementById('sync-btn');
+        btn.disabled = true; btn.innerText = "⏳ Sync...";
+        try {
+            await fetch(`${API_URL}/api/sync-odds?date=${document.getElementById('match-date').value}`);
+            fetchMatchs();
+            fetchNextCommitments();
+        } catch (e) { alert("Errore Sync"); }
+        btn.disabled = false; btn.innerText = "📡 Sync Giorno";
+    }
+
+    async function syncWeek() {
+        const btn = document.getElementById('sync-week-btn');
+        if(!confirm("Sincronizzare i prossimi 7 giorni?")) return;
+        btn.disabled = true; btn.innerText = "⏳ Operazione Lunga...";
+        try {
+            await fetch(`${API_URL}/api/sync-week`);
+            alert("Settimana aggiornata con successo!");
+            fetchMatchs();
+            fetchNextCommitments();
+        } catch (e) { alert("Errore Sync Settimana"); }
+        btn.disabled = false; btn.innerText = "📅 Sync Settimana";
+    }
+
+    function updateDynamicStats() {
+        const stake = parseFloat(document.getElementById('base-stake').value) || 0;
+        let profit = 0; let totalBet = 0;
+        currentMatchData.forEach(m => {
+            if (parseFloat(m.k_rate) > 0.2) {
+                totalBet += stake;
+                profit += (stake * parseFloat(m.market_odd)) - stake;
+            }
+        });
+        document.getElementById('total-profit').innerText = `€ ${profit.toFixed(2)}`;
+        document.getElementById('roi-percent').innerText = `${totalBet > 0 ? ((profit/totalBet)*100).toFixed(1) : 0}%`;
+    }
+
+    window.onload = () => {
+        document.getElementById('match-date').value = new Date().toISOString().split('T')[0];
+        fetchMatchs();
+        fetchNextCommitments();
+    };
+</script>
+</body>
+</html>

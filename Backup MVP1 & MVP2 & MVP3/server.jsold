@@ -1,0 +1,130 @@
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors'); 
+const axios = require('axios');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname)));
+
+const pool = new Pool({
+  user: 'postgres', host: 'localhost', database: 'tennis_db', password: 'Vannoe', port: 5432,
+});
+
+const RAPID_API_KEY = '6a395ed07amshc2355067933b0d3p1eeeeejsn7b9f7e70ffce';
+const RAPID_API_HOST = 'sportscore1.p.rapidapi.com';
+
+const ITALIAN_PLAYERS = ["Sinner", "Musetti", "Paolini", "Errani", "Bolelli", "Vavassori", "Arnaldi", "Cobolli", "Darderi", "Sonego", "Berrettini", "Fognini"];
+
+// --- FUNZIONI DI BLINDATURA (Anticonflitto) ---
+async function getPlayerId(name) {
+    const cleanName = name.trim();
+    const check = await pool.query('SELECT id FROM players WHERE name = $1', [cleanName]);
+    if (check.rows.length > 0) return check.rows[0].id;
+    try {
+        const insert = await pool.query('INSERT INTO players (name) VALUES ($1) RETURNING id', [cleanName]);
+        return insert.rows[0].id;
+    } catch (e) {
+        const retry = await pool.query('SELECT id FROM players WHERE name = $1', [cleanName]);
+        return retry.rows[0].id;
+    }
+}
+
+async function getChannelId(lcn) {
+    const check = await pool.query('SELECT id FROM channels WHERE lcn = $1', [lcn]);
+    if (check.rows.length > 0) return check.rows[0].id;
+    try {
+        const insert = await pool.query('INSERT INTO channels (name, lcn) VALUES ($1, $2) RETURNING id', [`Canale ${lcn}`, lcn]);
+        return insert.rows[0].id;
+    } catch (e) {
+        const retry = await pool.query('SELECT id FROM channels WHERE lcn = $1', [lcn]);
+        return retry.rows[0].id;
+    }
+}
+
+// --- LOGICA DI SINCRONIZZAZIONE MVP ---
+async function performSync(targetDate) {
+    try {
+        await pool.query('DELETE FROM matches WHERE match_date::date = $1', [targetDate]);
+        const response = await axios.get(`https://${RAPID_API_HOST}/sports/2/events/date/${targetDate}`, {
+            headers: { 'x-rapidapi-key': RAPID_API_KEY, 'x-rapidapi-host': RAPID_API_HOST }
+        });
+
+        const apiMatches = response.data.data || [];
+        let count = 0;
+
+        for (const match of apiMatches) {
+            const hName = match.home_team.name;
+            const aName = match.away_team.name;
+            
+            if (ITALIAN_PLAYERS.some(ita => hName.includes(ita) || aName.includes(ita))) {
+                const p1Id = await getPlayerId(hName);
+                const p2Id = await getPlayerId(aName);
+                
+                const stableSeed = parseInt(match.id) || 1000;
+                const mOdd = (match.odds?.home) ? parseFloat(match.odds.home).toFixed(2) : (1.35 + (stableSeed % 50) / 100).toFixed(2);
+                
+                const rH = match.home_team.ranking || (hName.includes('/') ? 10 : 150);
+                const rA = match.away_team.ranking || (aName.includes('/') ? 20 : 155);
+                
+                const lcn = (hName.includes("Sinner") || aName.includes("Sinner")) ? 64 : (stableSeed % 69) + 1;
+                const channelId = await getChannelId(lcn);
+
+                const kRate = (0.65 - (1/mOdd)).toFixed(3);
+
+                await pool.query(`
+                    INSERT INTO matches (player_it_id, opponent_id, match_date, market_odd, opening_odd, channel_id, k_rate, home_rank, away_rank)
+                    VALUES ($1, $2, $3, $4, $4 * 1.05, $5, $6, $7, $8)
+                `, [p1Id, p2Id, match.start_at, mOdd, channelId, kRate, rH, rA]);
+                count++;
+            }
+        }
+        return count;
+    } catch (e) { return 0; }
+}
+
+app.get('/api/matchs', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT m.*, p1.name AS azzurro, p2.name AS avversario, c.name AS tv, c.lcn as lcn_channel
+            FROM matches m
+            JOIN players p1 ON m.player_it_id = p1.id
+            JOIN players p2 ON m.opponent_id = p2.id
+            LEFT JOIN channels c ON m.channel_id = c.id
+            WHERE m.match_date::date = $1 ORDER BY m.match_date ASC
+        `, [req.query.date]);
+        
+        const final = result.rows.map(r => ({
+            ...r,
+            f_rate: 0.65,
+            wind_speed: (r.id % 12) + 5,
+            humidity: (r.id % 25) + 45,
+            weather_icon: (r.id % 2 === 0) ? '☀️' : '⛅'
+        }));
+        res.json(final);
+    } catch (e) { res.status(500).json([]); }
+});
+
+app.get('/api/sync-odds', async (req, res) => {
+    const count = await performSync(req.query.date);
+    res.json({ success: true, message: `Sincronizzati ${count} match.` });
+});
+
+app.get('/api/next-commitments', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT p1.name as player, p2.name as opponent, m.match_date as date, c.name as tv, c.lcn as lcn_channel
+            FROM matches m
+            JOIN players p1 ON m.player_it_id = p1.id
+            JOIN players p2 ON m.opponent_id = p2.id
+            JOIN channels c ON m.channel_id = c.id
+            WHERE m.match_date::date > CURRENT_DATE
+            ORDER BY m.match_date ASC LIMIT 8
+        `);
+        res.json(result.rows);
+    } catch (e) { res.status(500).json([]); }
+});
+
+app.listen(5000, () => console.log('SERVER MVP1/2 RIPRISTINATO E BLINDATO - PORTA 5000'));

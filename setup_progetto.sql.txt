@@ -1,0 +1,95 @@
+/*******************************************************************************
+ * 1. SCHEMA DEL DATABASE (PostgreSQL)
+ * Basato sul Protocollo 5.1 - Architettura Modulare [cite: 42, 59]
+ *******************************************************************************/
+
+-- Tabella Infrastruttura 70 Canali DTT + Premium [cite: 40, 62]
+CREATE TABLE IF NOT EXISTS channels (
+    id SERIAL PRIMARY KEY,
+    lcn INT,                       -- Numero logico del canale (1-70 per DTT) [cite: 71]
+    name VARCHAR(100) NOT NULL,
+    provider_type VARCHAR(50),      -- DTT, Satellite, OTT [cite: 10]
+    is_tennis_active BOOLEAN DEFAULT FALSE
+);
+
+-- Tabella Atleti e KPI Tecnici [cite: 64, 82]
+CREATE TABLE IF NOT EXISTS players (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    ranking_live INT,
+    surface_win_rate DECIMAL(5,2),  -- Peso 30% nel modello [cite: 100]
+    first_serve_pct DECIMAL(5,2),   -- KPI Fisico [cite: 83]
+    ace_per_set DECIMAL(5,2),       -- KPI Fisico [cite: 84]
+    tie_break_win_rate DECIMAL(5,2),-- KPI Fisico [cite: 86]
+    is_italian BOOLEAN DEFAULT FALSE
+);
+
+-- Tabella Match e Variabili Ambientali [cite: 63, 67]
+CREATE TABLE IF NOT EXISTS matches (
+    id SERIAL PRIMARY KEY,
+    player_it_id INT REFERENCES players(id),
+    opponent_id INT REFERENCES players(id),
+    channel_id INT REFERENCES channels(id),
+    match_date DATE NOT NULL,       -- Sincronizzazione per data [cite: 26, 30]
+    surface_type VARCHAR(50),       -- Cemento, Terra, Erba [cite: 16]
+    temp DECIMAL(4,1),              -- Parametro Meteo [cite: 92]
+    humidity INT,                   -- Parametro Meteo [cite: 92]
+    wind_speed DECIMAL(4,1),        -- Parametro Meteo [cite: 92]
+    market_odd DECIMAL(5,2),        -- Quota Bookmaker [cite: 75, 105]
+    is_live BOOLEAN DEFAULT FALSE   -- Stato Live [cite: 126]
+);
+
+/*******************************************************************************
+ * 2. DATA SEED (Dati di Test per Debug)
+ * Inserimento dei 70 canali e di un match di prova (Sinner) [cite: 27]
+ *******************************************************************************/
+
+-- Esempio inserimento canali DTT e Premium [cite: 62, 71]
+INSERT INTO channels (lcn, name, provider_type, is_tennis_active) VALUES 
+(64, 'SuperTennis', 'DTT', TRUE),
+(35, 'Rai Sport', 'DTT', TRUE),
+(201, 'Sky Sport Tennis', 'Satellite', TRUE),
+(0, 'Eurosport 1', 'OTT', TRUE);
+
+-- Inserimento Atleti [cite: 88]
+INSERT INTO players (name, ranking_live, surface_win_rate, is_italian) VALUES 
+('Jannik Sinner', 1, 85.5, TRUE),
+('Carlos Alcaraz', 3, 82.0, FALSE);
+
+-- Inserimento Match di test con dati meteo e quote [cite: 130, 131]
+INSERT INTO matches (player_it_id, opponent_id, channel_id, match_date, surface_type, temp, humidity, market_odd, is_live) VALUES 
+(1, 2, 3, '2026-03-26', 'Hard', 24.5, 60, 1.85, TRUE);
+
+/*******************************************************************************
+ * 3. BACKEND CORE (Node.js / Express)
+ * Logica per Gap Analysis e recupero palinsesto [cite: 52, 95]
+ *******************************************************************************/
+
+/* // Salvare questa parte in un file chiamato server.js
+const express = require('express');
+const app = express();
+
+// Rotta per il palinsesto filtrato per data 
+app.get('/api/matchs', (req, res) => {
+    const { date } = req.query; 
+    // Logica: SELECT * FROM matches WHERE match_date = date 
+    res.json({ status: "success", info: "Palinsesto caricato per data: " + date });
+});
+
+// Calcolo Gap Analysis [cite: 58, 107]
+app.get('/api/gap/:matchId', (req, res) => {
+    // probWin (calcolata) - impliedProb (mercato) [cite: 107]
+    const probWin = 0.65; 
+    const odd = 1.85;
+    const impliedProb = 1 / odd;
+    const value_score = probWin - impliedProb;
+
+    res.json({
+        matchId: req.params.matchId,
+        score: value_score.toFixed(4),
+        action: value_score > 0.12 ? "BUY" : "NO BET" // Regola 4.2 [cite: 109, 111]
+    });
+});
+
+app.listen(5000, () => console.log("Server Debug attivo sulla porta 5000"));
+*/

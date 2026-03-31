@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Tennis Command Center MASTER - V19.0</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #080808; color: #e0e0e0; margin: 0; padding: 15px; overflow: hidden; }
+        .dashboard-grid { display: grid; grid-template-columns: 350px 1fr 320px; gap: 15px; height: calc(100vh - 30px); }
+        .panel { background: #121212; border-radius: 12px; border: 1px solid #222; display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { padding: 15px; background: #1a1a1a; border-bottom: 1px solid #222; font-weight: bold; color: #2ecc71; display: flex; justify-content: space-between; align-items: center; }
+        .scroll-area { flex: 1; overflow-y: auto; padding: 15px; }
+
+        .btn-sync { background: #007bff; border: none; color: white; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn-nuke { background: #e74c3c; border: none; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.7em; cursor: pointer; }
+
+        .match-card { background: #1a1a1a; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; transition: 0.2s; overflow: hidden; }
+        .match-card.selected-card { border-color: #2ecc71; background: #111e15; }
+        
+        .card-top { padding: 8px 15px; background: #111; display: flex; justify-content: space-between; font-size: 0.75em; color: #888; border-bottom: 1px solid #222; }
+        .card-main { padding: 15px; display: grid; grid-template-columns: 1fr 60px 1fr; gap: 15px; align-items: center; }
+        
+        .player-info { display: flex; flex-direction: column; }
+        .player-name { font-size: 1.15em; font-weight: bold; color: #2ecc71; margin-bottom: 5px; }
+        .rank-badge { font-size: 0.75em; background: #004a99; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; width: fit-content; }
+        
+        .stat-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid #333; }
+        .label { font-size: 0.65em; color: #777; font-weight: bold; display: block; }
+        .val-prob { font-size: 1em; color: #3498db; font-weight: bold; }
+        .val-roi { font-size: 1em; color: #f1c40f; font-weight: bold; }
+        .val-profit { font-size: 1.1em; color: #2ecc71; font-weight: bold; }
+
+        .opp .player-name { color: #e67e22; }
+        .opp .rank-badge { background: #444; margin-left: auto; }
+        .opp .val-profit { color: #e67e22; }
+        .opp { text-align: right; }
+
+        .vs-circle { width: 40px; height: 40px; border-radius: 50%; background: #222; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: bold; border: 1px solid #333; margin: 0 auto; }
+        
+        .model-footer { padding: 10px 15px; border-top: 1px solid rgba(255,255,255,0.03); background: #161616; }
+        .model-bar { height: 4px; display: flex; background: #333; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+        .w-1 { width: 30%; background: #3498db; } .w-2 { width: 20%; background: #9b59b6; } .w-3 { width: 20%; background: #f1c40f; } .w-4 { width: 20%; background: #e74c3c; } .w-5 { width: 10%; background: #1abc9c; }
+        .model-labels { display: flex; justify-content: space-between; font-size: 0.6em; color: #555; font-weight: bold; }
+
+        .stat-row { background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #2ecc71; }
+        .stat-val { font-size: 1.8em; font-weight: bold; color: #2ecc71; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-grid">
+    <div class="panel">
+        <div class="panel-header"><span>📅 RADAR TV 7G</span></div>
+        <div class="scroll-area" id="weekly-area"></div>
+    </div>
+
+    <div class="panel" style="background:transparent; border:none;">
+        <div class="controls" style="background:#1a1a1a; padding:15px; border-radius:12px; margin-bottom:15px; display:flex; gap:10px; align-items:center; border:1px solid #222;">
+            <input type="date" id="datePicker">
+            <button class="btn-sync" onclick="syncDay()">📡 SYNC GIORNO</button>
+            <div style="margin-left:auto;">STAKE BASE: <input type="number" id="base-stake" value="10" style="width:60px; background:#222; color:white; border:1px solid #444; padding:5px;" oninput="updateUI()"> €</div>
+        </div>
+        <div class="scroll-area" id="match-area" style="background:#121212; border-radius:12px; border:1px solid #222;"></div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header"><span>📊 SCHEDINA LIVE</span><button class="btn-nuke" onclick="nukeDB()">🗑️ WIPE</button></div>
+        <div class="scroll-area">
+            <div id="selection-count" style="font-size:0.85em; color:#888; margin-bottom:15px;">Seleziona match</div>
+            <div class="stat-row">
+                <div style="font-size:0.75em; color:#666;">PROFITTO TOTALE</div>
+                <div id="total-profit" class="stat-val">€ 0.00</div>
+            </div>
+            <div class="stat-row" style="border-color:#3498db;">
+                <div style="font-size:0.75em; color:#666;">ROI MEDIO ATTESO</div>
+                <div id="roi-val" class="stat-val" style="color:#3498db;">0.0%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:5000";
+    let matches = [];
+
+    async function nukeDB() { if(!confirm("Svuoto tutto?")) return; await fetch(`${API_URL}/api/reset-db`); loadData(); }
+    async function syncDay() { await fetch(`${API_URL}/api/sync-odds?date=${document.getElementById('datePicker').value}`); loadData(); }
+
+    async function loadData() {
+        const d = document.getElementById('datePicker').value;
+        const [mRes, wRes] = await Promise.all([fetch(`${API_URL}/api/matchs?date=${d}`), fetch(`${API_URL}/api/weekly-schedule`)]);
+        matches = await mRes.json();
+        renderMatches();
+        renderWeekly(await wRes.json());
+    }
+
+    function renderMatches() {
+        const area = document.getElementById('match-area');
+        if(matches.length === 0) { area.innerHTML = "<div style='text-align:center; padding-top:50px;'>Fai Sync Giorno.</div>"; return; }
+        area.innerHTML = matches.map((m, i) => {
+            const prob = (((1/m.market_odd) + parseFloat(m.k_rate)) * 100).toFixed(1);
+            const roiPlayer = ((parseFloat(m.market_odd) - 1) * 100).toFixed(0);
+            return `
+            <div class="match-card" id="card-${i}">
+                <div class="card-top"><span>☀️ ${m.temp}°C | LCN ${m.lcn_channel}</span><span>${new Date(m.match_date).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span></div>
+                <div class="card-main">
+                    <div class="player-info">
+                        <span class="player-name">${m.azzurro}</span>
+                        <span class="rank-badge">RANK #${m.azz_rank_val}</span>
+                        <div class="stat-box">
+                            <span class="label">PROB / ROI</span>
+                            <span class="val-prob">${prob}%</span> / <span class="val-roi">+${roiPlayer}%</span>
+                            <span class="label" style="margin-top:5px;">PROFITTO</span>
+                            <span class="val-profit" id="win-azz-${i}">€ 0.00</span>
+                        </div>
+                    </div>
+                    <div style="text-align:center;"><div class="vs-circle">VS</div><input type="checkbox" id="check-${i}" style="transform:scale(1.7); margin-top:10px;" onchange="updateUI()"></div>
+                    <div class="player-info opp">
+                        <span class="player-name">${m.avversario}</span>
+                        <span class="rank-badge">RANK #${m.opp_rank_val}</span>
+                        <div class="stat-box">
+                            <span class="label">PROB / ROI</span>
+                            <span class="val-roi">+${((parseFloat(m.opening_odd)-1)*100).toFixed(0)}%</span> / <span class="val-prob">${(100-prob).toFixed(1)}%</span>
+                            <span class="label" style="margin-top:5px;">PROFITTO</span>
+                            <span class="val-profit" id="win-opp-${i}">€ 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        updateUI();
+    }
+
+    function renderWeekly(data) {
+        document.getElementById('weekly-area').innerHTML = data.map(m => `<div class="week-item"><b>${m.azzurro}</b> vs ${m.avversario} <span style="float:right; color:#e74c3c;">LCN ${m.lcn_channel}</span></div>`).join('');
+    }
+
+    function updateUI() {
+        const stake = parseFloat(document.getElementById('base-stake').value) || 0;
+        let totalProfit = 0; let totalBet = 0; let count = 0;
+        matches.forEach((m, i) => {
+            const winAzz = (stake * parseFloat(m.market_odd)) - stake;
+            const winOpp = (stake * parseFloat(m.opening_odd)) - stake;
+            if(document.getElementById(`win-azz-${i}`)) document.getElementById(`win-azz-${i}`).innerText = `+€${winAzz.toFixed(2)}`;
+            if(document.getElementById(`win-opp-${i}`)) document.getElementById(`win-opp-${i}`).innerText = `+€${winOpp.toFixed(2)}`;
+            const cb = document.getElementById(`check-${i}`);
+            if(cb && cb.checked) {
+                document.getElementById(`card-${i}`).classList.add('selected-card');
+                totalBet += stake; totalProfit += winAzz; count++;
+            } else if(document.getElementById(`card-${i}`)) {
+                document.getElementById(`card-${i}`).classList.remove('selected-card');
+            }
+        });
+        document.getElementById('total-profit').innerText = `€ ${totalProfit.toFixed(2)}`;
+        document.getElementById('roi-val').innerText = `${totalBet > 0 ? ((totalProfit/totalBet)*100).toFixed(1) : 0}%`;
+        document.getElementById('selection-count').innerText = `${count} match selezionati`;
+    }
+
+    document.getElementById('datePicker').valueAsDate = new Date();
+    loadData();
+</script>
+</body>
+</html>

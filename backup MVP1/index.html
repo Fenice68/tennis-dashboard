@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Tennis Live & Trading Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        
+        .stats { display: flex; gap: 20px; margin-bottom: 25px; }
+        .card { flex: 1; padding: 20px; border-radius: 12px; color: white; text-align: center; background: #1a2a6c; }
+        .card.pos { background: #27ae60; }
+        .card.neg { background: #e74c3c; }
+        .card span { display: block; font-size: 1.8em; font-weight: bold; }
+
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px; }
+        #upd-time { font-size: 0.8em; color: #888; font-family: monospace; }
+        .btn { background: #1a2a6c; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 15px; font-size: 0.8em; color: #999; text-transform: uppercase; }
+        td { padding: 15px; border-bottom: 1px solid #f5f5f5; }
+        
+        .win { background: #f0fff4 !important; border-left: 6px solid #27ae60; }
+        .loss { background: #fff5f5 !important; border-left: 6px solid #e74c3c; }
+        .badge { padding: 4px 10px; border-radius: 20px; color: white; font-size: 0.75em; font-weight: bold; }
+        .sky { background: #0072bc; } .euro { background: #f1c40f; color: black; } .dtt { background: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="stats">
+        <div class="card">Match Conclusi <span id="cnt">0</span></div>
+        <div class="card" id="pl-card">P&L Totale <span id="pl-val">€ 0.00</span></div>
+    </div>
+
+    <header>
+        <h1>Tennis Live & Trading</h1>
+        <div id="upd-time">Ultimo aggiornamento: --:--:--</div>
+        <button class="btn" onclick="caricaDati()">Aggiorna Dati ↻</button>
+    </header>
+
+    <div class="controls">
+        <input type="date" id="dateFilter" onchange="eseguiFiltro()" value="2026-03-26">
+        <input type="text" id="search" placeholder="🔍 Cerca canale o giocatore..." onkeyup="eseguiFiltro()" style="flex-grow: 1;">
+    </div>
+
+    <div id="tabella-container"></div>
+</div>
+
+<script>
+    let matchGlobali = [];
+    const stake = 10;
+
+    async function caricaDati() {
+        try {
+            // Anti-cache integrato
+            const res = await fetch('http://localhost:5000/api/matchs?v=' + Date.now());
+            matchGlobali = await res.json();
+            
+            aggiornaPL();
+            eseguiFiltro();
+            document.getElementById('upd-time').innerText = "Ultimo aggiornamento: " + new Date().toLocaleTimeString();
+        } catch (e) {
+            console.error("Errore connessione:", e);
+        }
+    }
+
+    function aggiornaPL() {
+        let profit = 0; let n = 0;
+        matchGlobali.forEach(m => {
+            if (m.result !== null) {
+                n++;
+                const q = parseFloat(m.market_odd);
+                if (m.result === 1) profit += (q - 1) * stake;
+                else if (m.result === 0) profit -= stake;
+            }
+        });
+        document.getElementById('cnt').innerText = n;
+        document.getElementById('pl-val').innerText = "€ " + profit.toFixed(2);
+        document.getElementById('pl-card').className = "card " + (profit >= 0 ? "pos" : "neg");
+    }
+
+    function eseguiFiltro() {
+        const d = document.getElementById('dateFilter').value;
+        const q = document.getElementById('search').value.toLowerCase();
+        
+        const list = matchGlobali.filter(m => {
+            const mDate = new Date(m.match_date).toISOString().split('T')[0];
+            return mDate === d && (m.azzurro.toLowerCase().includes(q) || m.tv.toLowerCase().includes(q));
+        });
+        
+        render(list);
+    }
+
+    function render(data) {
+        let html = `<table><tr><th>Esito</th><th>Match / Guida TV</th><th>Quota</th><th>LCN</th></tr>`;
+        data.forEach(m => {
+            let rowCls = ""; let tag = "📅";
+            if (m.result === 1) { rowCls = "win"; tag = "✅ WIN"; }
+            else if (m.result === 0) { rowCls = "loss"; tag = "❌ LOSS"; }
+
+            const badgeCls = m.tv.toUpperCase().includes('SKY') ? 'sky' : (m.tv.toUpperCase().includes('EURO') ? 'euro' : 'dtt');
+
+            html += `<tr class="${rowCls}">
+                <td style="font-weight:bold">${tag}</td>
+                <td><b>${m.azzurro}</b> vs ${m.avversario}<br><span class="badge ${badgeCls}">${m.tv}</span></td>
+                <td><b>${parseFloat(m.market_odd).toFixed(2)}</b></td>
+                <td><b>${m.lcn}</b></td>
+            </tr>`;
+        });
+        document.getElementById('tabella-container').innerHTML = data.length ? html + "</table>" : "<p style='text-align:center; padding:20px;'>Nessun match per questa data.</p>";
+    }
+
+    caricaDati();
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Tennis Italia - MVP Ripristinato</title>
+    <style>
+        :root { --primary: #2ecc71; --bg: #0c0c0c; --panel: #1a1a1a; --text: #e0e0e0; --danger: #e74c3c; --warning: #f1c40f; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        
+        .navbar { background: var(--panel); padding: 15px 30px; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.6em; font-weight: 800; color: var(--primary); letter-spacing: 1px; }
+
+        .main-layout { display: flex; gap: 20px; max-width: 1600px; margin: auto; padding: 25px; }
+        
+        /* Sidebar Sinistra */
+        .sidebar { width: 320px; background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #333; position: sticky; top: 20px; height: fit-content; }
+        .stat-card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--primary); }
+        .upcoming-item { padding: 12px; border-bottom: 1px solid #222; font-size: 0.85em; }
+
+        /* Contenuto Centrale */
+        .content { flex: 1; }
+        .top-controls { background: var(--panel); padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; margin-bottom: 25px; border: 1px solid #333; }
+        input[type="date"] { padding: 10px; border-radius: 6px; background: #222; color: white; border: 1px solid #444; }
+
+        /* Card Match Completa */
+        .match-card { background: var(--panel); border-radius: 12px; margin-bottom: 20px; border: 1px solid #333; overflow: hidden; border-left: 6px solid transparent; cursor: pointer; }
+        .match-card:hover { border-color: #555; }
+        .card-top { background: rgba(0,0,0,0.3); padding: 10px 20px; display: flex; justify-content: space-between; font-size: 0.9em; border-bottom: 1px solid #333; }
+        .card-main { padding: 20px; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 20px; align-items: center; }
+
+        .rank-badge { background: #004a99; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 5px; }
+        .weather-info { color: #888; font-size: 0.85em; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .odds-box { border-left: 1px solid #333; padding-left: 20px; text-align: right; }
+        .market-odd { font-size: 1.8em; font-weight: bold; color: var(--warning); display: block; }
+        .gap-score { font-size: 1.5em; font-weight: 800; color: var(--primary); }
+        
+        .sync-btn { background: var(--primary); color: black; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="logo">TENNIS MVP <span style="font-size: 0.5em; color: #888;">Fase 2 Pro</span></div>
+    <div id="weather-top">☀️ 18°C Rome</div>
+</div>
+
+<div class="main-layout">
+    <div class="sidebar">
+        <h3 style="color:var(--primary); margin-top:0;">📊 PERFORMANCE</h3>
+        <div class="stat-card"><small>BANKROLL</small><div style="font-size:1.5em; font-weight:bold;">€ 1,000.00</div></div>
+        <div class="stat-card" style="border-left-color: #3498db;"><small>ROI %</small><div style="font-size:1.5em; font-weight:bold;">+ 0.0%</div></div>
+        
+        <h3 style="color:var(--primary); margin-top:30px; border-top: 1px solid #333; padding-top:20px;">📅 PROSSIMI IMPEGNI</h3>
+        <div id="upcoming-list"></div>
+    </div>
+
+    <div class="content">
+        <div class="top-controls">
+            <div>
+                <h2 style="margin:0;">Palinsesto Odierno</h2>
+                <small style="color:#666;">Sincronizzazione dati DTT & API</small>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="date" id="match-date">
+                <button onclick="syncData()" class="sync-btn">📡 SYNC DATA</button>
+            </div>
+        </div>
+
+        <div id="match-list"></div>
+    </div>
+</div>
+
+<script>
+    const API = "http://localhost:5000/api";
+
+    async function syncData() {
+        const date = document.getElementById('match-date').value;
+        const res = await fetch(`${API}/sync-odds?date=${date}`);
+        const data = await res.json();
+        alert(data.message);
+        loadData();
+    }
+
+    async function loadData() {
+        const date = document.getElementById('match-date').value;
+        if(!date) return;
+
+        // Carica Match
+        const mRes = await fetch(`${API}/matchs?date=${date}`);
+        const matches = await mRes.json();
+        document.getElementById('match-list').innerHTML = matches.map(m => `
+            <div class="match-card" style="border-left-color: ${parseFloat(m.k_rate) > 0.05 ? 'var(--primary)' : '#333'}">
+                <div class="card-top">
+                    <span><b style="color:var(--danger)">${m.tv}</b> - Canale ${m.lcn_channel}</span>
+                    <span>${new Date(m.match_date).toLocaleString('it-IT')}</span>
+                </div>
+                <div class="card-main">
+                    <div>
+                        <div style="font-size:1.4em; font-weight:bold; color:var(--primary);">${m.azzurro} <span class="rank-badge">#${m.home_rank}</span></div>
+                        <div style="font-size:1.1em; color:#aaa; margin:5px 0;">vs ${m.avversario} <span class="rank-badge" style="background:#444;">#${m.away_rank}</span></div>
+                        <div class="weather-info">
+                            <span>${m.weather_icon} Outdoor</span>
+                            <span>💨 ${m.wind_speed} km/h</span>
+                            <span>💧 ${m.humidity}% umid.</span>
+                            <span style="color:var(--primary)">📊 F-Rate: ${m.f_rate}</span>
+                        </div>
+                    </div>
+                    <div style="text-align:center; border-left: 1px solid #333;">
+                        <small style="color:#888;">PROBABILITÀ</small>
+                        <div style="font-size:1.6em; font-weight:bold;">${((1/m.market_odd + parseFloat(m.k_rate))*100).toFixed(1)}%</div>
+                    </div>
+                    <div class="odds-box">
+                        <small style="text-decoration:line-through; color:#666;">Ap: ${m.opening_odd}</small>
+                        <span class="market-odd">${m.market_odd}</span>
+                        <div class="gap-score">${m.k_rate}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Carica Sidebar
+        const uRes = await fetch(`${API}/next-commitments`);
+        const upcoming = await uRes.json();
+        document.getElementById('upcoming-list').innerHTML = upcoming.map(u => `
+            <div class="upcoming-item">
+                <div style="color:var(--primary); font-weight:bold;">${u.player}</div>
+                <div style="color:#aaa;">vs ${u.opponent}</div>
+                <div style="font-size:0.8em; color:#666; margin-top:4px;">${new Date(u.date).toLocaleDateString()} - ${u.tv} (LCN ${u.lcn_channel})</div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('match-date').valueAsDate = new Date();
+    loadData();
+</script>
+</body>
+</html>

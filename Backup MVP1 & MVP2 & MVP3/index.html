@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Tennis Command Center MASTER</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #08090a;
+            --panel: #111317;
+            --card: #1a1d23;
+            --tennis: #dcf836;
+            --success: #00f294;
+            --danger: #ff4d6d;
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { box-sizing: border-box; transition: all 0.2s ease; }
+        body { 
+            margin: 0; background: var(--bg); color: var(--text-main); 
+            font-family: 'Outfit', sans-serif; overflow: hidden; height: 100vh;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        .dashboard-grid { display: grid; grid-template-columns: 280px 1fr 340px; height: 100vh; gap: 0; }
+
+        .panel { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { 
+            padding: 20px; font-weight: 700; font-size: 0.9em; letter-spacing: 1px;
+            text-transform: uppercase; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center; color: var(--text-dim);
+        }
+
+        .scroll-area { flex: 1; overflow-y: auto; padding: 15px; }
+
+        .week-item { padding: 12px; background: var(--glass); border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border); font-size: 0.8em; }
+        .week-time { color: var(--tennis); font-weight: 600; margin-bottom: 4px; display: block; }
+
+        .controls { padding: 15px 25px; background: rgba(17, 19, 23, 0.8); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); display: flex; gap: 15px; align-items: center; }
+        input, button { background: #22252a; border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 8px; font-family: inherit; font-size: 0.9em; }
+        .btn-sync { background: var(--tennis); color: black; font-weight: 700; border: none; cursor: pointer; padding: 8px 20px; }
+
+        .match-card { background: var(--card); border-radius: 18px; margin-bottom: 20px; border: 1px solid var(--border); overflow: hidden; position: relative; }
+        .match-card.selected-card { border-color: var(--tennis); box-shadow: 0 0 20px rgba(220, 248, 54, 0.1); }
+        .card-top { padding: 10px 20px; background: rgba(0,0,0,0.2); display: flex; justify-content: space-between; font-size: 0.7em; color: var(--text-dim); border-bottom: 1px solid var(--border); align-items: center; }
+        .card-main { padding: 20px; display: grid; grid-template-columns: 1fr 140px 1fr; gap: 20px; align-items: start; }
+
+        .player-info { display: flex; flex-direction: column; }
+        .player-name { font-size: 1.25em; font-weight: 700; color: white; margin-bottom: 4px; }
+        .ita-flag { color: var(--tennis); }
+        .rank-tag { font-size: 0.65em; font-weight: 700; padding: 2px 8px; background: #333; border-radius: 4px; width: fit-content; margin-bottom: 15px; }
+
+        .metric-container { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid var(--border); text-align: center; display: flex; flex-direction: column; gap: 8px; position: relative; }
+        .metric-label { font-size: 0.6em; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .prob-val { font-size: 2.2em; font-weight: 700; line-height: 1; }
+        .prob-high { color: var(--success); text-shadow: 0 0 10px rgba(0, 242, 148, 0.2); }
+        .prob-low { color: var(--danger); text-shadow: 0 0 10px rgba(255, 77, 109, 0.1); }
+
+        .center-meta { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .tourney-badge { color: var(--tennis); font-weight: 700; font-size: 0.75em; text-transform: uppercase; line-height: 1.3; }
+        .vs-bar { width: 40px; height: 1px; background: var(--border); margin: 15px 0; position: relative; }
+        .vs-bar::after { content: "VS"; position: absolute; top: -8px; left: 12px; background: var(--card); padding: 0 5px; font-size: 0.65em; font-weight: 800; color: var(--text-dim); }
+
+        .stat-card { background: var(--glass); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 15px; }
+        .stat-card .label { font-size: 0.7em; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-size: 2.2em; font-weight: 700; color: var(--success); }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-grid">
+    <div class="panel">
+        <div class="panel-header"><span>📅 RADAR TV (7 GIORNI)</span></div>
+        <div class="scroll-area" id="weekly-area"></div>
+    </div>
+
+    <div class="panel" style="background:transparent; border:none;">
+        <div class="controls" style="background:#1a1a1a; padding:15px; border-radius:12px; margin-bottom:15px; display:flex; gap:10px; align-items:center; border:1px solid #222;">
+            <input type="date" id="datePicker">
+            <button class="btn-sync" onclick="syncDay()">📡 SYNC GIORNO</button>
+            <div style="margin-left:auto;">BANKROLL: <input type="number" id="bankroll" value="1000" style="width:80px; background:#222; border:1px solid #444; color:white; padding:5px;" oninput="updateUI()"> €</div>
+        </div>
+        <div class="scroll-area" id="match-area" style="background:#121212; border-radius:12px; border:1px solid #222;"></div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <span>📊 SCHEDINA LIVE</span>
+            <div style="display:flex; gap:8px;">
+                <button class="btn-save" onclick="saveBets()">💾 SALVA</button>
+                <button class="btn-nuke" style="background:#2980b9;" onclick="window.open('http://localhost:5000/api/export-bets', '_blank')">📥</button>
+                <button class="btn-nuke" onclick="nukeDB()">🗑️</button>
+            </div>
+        </div>
+        <div class="scroll-area">
+            <div id="selection-count" style="font-size:0.75em; color:var(--text-dim); margin-bottom:20px; font-weight:600; text-transform:uppercase;">Seleziona match</div>
+            
+            <div class="stat-card">
+                <div class="label">PROFITTO ATTESO</div>
+                <div id="total-profit" class="value" style="color:var(--success)">€ 0.00</div>
+            </div>
+
+            <div class="stat-card" style="border-color:rgba(52, 152, 219, 0.3)">
+                <div class="label">ROI MEDIO</div>
+                <div id="roi-val" class="value" style="color:#3498db;">0.0%</div>
+            </div>
+
+            <div style="margin-top:auto; padding:15px; background:var(--glass); border-radius:12px; font-size:0.7em; color:var(--text-dim); line-height:1.4;">
+                ⚡ <b>Metodo Kelly:</b> Calcolo automatico dello stake ottimale bilanciando rischio e probabilità reale.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:5000";
+    let matches = [];
+
+    const ITA_PLAYERS = ["sinner", "paolini", "musetti", "cobolli", "arnaldi", "darderi", "berrettini", "sonego", "fognini", "errani"];
+    const isIta = (name) => ITA_PLAYERS.some(p => name.toLowerCase().includes(p));
+
+    async function nukeDB() { if(!confirm("Svuotare intero database?")) return; await fetch(`${API_URL}/api/reset-db`); loadData(); }
+    
+    async function syncDay() {
+        const d = document.getElementById('datePicker').value;
+        const btn = document.querySelector('.btn-sync'); btn.innerText = "⏳...";
+        try {
+            const response = await fetch(`${API_URL}/api/sync-odds?date=${d}`);
+            const data = await response.json();
+            if (!data.success) {
+                alert("Errore dal server: " + data.error);
+            } else if (data.count === 0) {
+                alert("Nessun match trovato per questa data o quota terminata.");
+            } else {
+                alert(`Sincronizzati ${data.count} match per il ${d}`);
+            }
+        } catch (e) {
+            alert("Errore di connessione al server.");
+        }
+        btn.innerText = "📡 SYNC GIORNO";
+        loadData();
+    }
+
+    async function loadData() {
+        const d = document.getElementById('datePicker').value;
+        const [mRes, wRes] = await Promise.all([
+            fetch(`${API_URL}/api/matchs?date=${d}`),
+            fetch(`${API_URL}/api/weekly-schedule`)
+        ]);
+        matches = await mRes.json();
+        const weekly = await wRes.json();
+        renderMatches();
+        renderWeekly(weekly);
+        updateUI();
+    }
+
+    function renderMatches() {
+        const area = document.getElementById('match-area');
+        area.innerHTML = matches.map((m, i) => {
+            const prob1 = parseFloat(m.azz_prob);
+            const prob2 = 100 - prob1;
+            const isHigh = prob1 >= 50;
+
+            return `
+            <div class="match-card" id="card-${i}">
+                <div class="card-top">
+                    <span>${m.weather_icon} ${m.temp}°C | Vento: ${m.wind}kmh | ${m.venue_city}</span>
+                    <span>${m.surface} | LCN ${m.lcn_channel}</span>
+                </div>
+                <div class="card-main">
+                    <div class="player-info">
+                        <div class="rank-tag">RANK #${m.azz_rank_val}</div>
+                        <span class="player-name">${isIta(m.azzurro) ? '<span class="ita-flag">🇮🇹</span> ' : ''}${m.azzurro}</span>
+                        
+                        <div class="metric-container" style="border-color:${isHigh ? 'var(--success)' : 'var(--border)'}">
+                            <div class="metric-label">VITTORIA</div>
+                            <div class="prob-val ${isHigh ? 'prob-high' : 'prob-low'}">${prob1.toFixed(1)}%</div>
+                            <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                                <span style="font-size:0.7em; font-weight:700; color:var(--tennis)">+${m.azz_roi}% ROI</span>
+                                <span style="font-size:0.75em; font-weight:700; color:var(--text-main)" id="win-azz-${i}"></span>
+                            </div>
+                            <div style="font-size:0.65em; font-weight:700; margin-top:5px; color:var(--text-dim);" id="kelly-azz-${i}"></div>
+                        </div>
+                    </div>
+
+                    <div class="center-meta">
+                        <div class="tourney-badge">${m.tournament}<br><span style="opacity:0.5; font-size:0.8em;">${m.match_round}</span></div>
+                        <div class="vs-bar"></div>
+                        <input type="checkbox" id="check-${i}" style="transform:scale(1.5); accent-color:var(--tennis);" onchange="updateUI()">
+                    </div>
+
+                    <div class="player-info" style="text-align:right; align-items:flex-end;">
+                        <div class="rank-tag">RANK #${m.opp_rank_val}</div>
+                        <span class="player-name" style="color:#f39c12">${isIta(m.avversario) ? '<span class="ita-flag">🇮🇹</span> ' : ''}${m.avversario}</span>
+                        
+                        <div class="metric-container" style="border-color:${!isHigh ? 'var(--success)' : 'var(--border)'}">
+                            <div class="metric-label">PROBABILITÀ</div>
+                            <div class="prob-val ${!isHigh ? 'prob-high' : 'prob-low'}">${prob2.toFixed(1)}%</div>
+                            <div style="display:flex; justify-content:space-between; margin-top:10px; width:100%;">
+                                <span style="font-size:0.75em; font-weight:700; color:var(--text-main)" id="win-opp-${i}"></span>
+                                <span style="font-size:0.7em; font-weight:700; color:var(--tennis)">+${m.opp_roi}% ROI</span>
+                            </div>
+                            <div style="font-size:0.65em; font-weight:700; margin-top:5px; color:var(--text-dim);" id="kelly-opp-${i}"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderWeekly(data) {
+        document.getElementById('weekly-area').innerHTML = data.map(m => `
+            <div class="week-item">
+                <span class="week-time">LCN ${m.lcn_channel} &bull; ${m.target_date}</span>
+                <div class="week-players"><b>${m.azzurro}</b> vs ${m.avversario}</div>
+            </div>`).join('');
+    }
+
+    function updateUI() {
+        const bankroll = parseFloat(document.getElementById('bankroll').value) || 0;
+        let totalProfit = 0; let totalBet = 0; let count = 0;
+        
+        matches.forEach((m, i) => {
+            // Calcolo Kelly Criterio: f = (bp - q) / b
+            let aProb = parseFloat(m.azz_prob) / 100;
+            let aOddDec = parseFloat(m.market_odd);
+            let aB = aOddDec - 1;
+            let aQ = 1 - aProb;
+            let aKelly = aB > 0 ? ((aB * aProb) - aQ) / aB : 0;
+            
+            let oProb = (100 - parseFloat(m.azz_prob)) / 100;
+            let oOddDec = parseFloat(m.opening_odd);
+            let oB = oOddDec - 1;
+            let oQ = 1 - oProb;
+            let oKelly = oB > 0 ? ((oB * oProb) - oQ) / oB : 0;
+
+            // Stop loss drawdown limit (CAP al 5% del saldo come da Protocollo V5.1)
+            aKelly = Math.max(0, Math.min(aKelly, 0.05));
+            oKelly = Math.max(0, Math.min(oKelly, 0.05));
+
+            let stakeAzz = bankroll * aKelly;
+            let stakeOpp = bankroll * oKelly;
+
+            const winAzz = (stakeAzz * aOddDec) - stakeAzz;
+            const winOpp = (stakeOpp * oOddDec) - stakeOpp;
+
+            if(document.getElementById(`win-azz-${i}`)) {
+                document.getElementById(`win-azz-${i}`).innerText = `+€${winAzz.toFixed(2)}`;
+                const el = document.getElementById(`kelly-azz-${i}`);
+                if(el){
+                    el.innerText = aKelly > 0 ? `Stake: € ${stakeAzz.toFixed(2)} (${(aKelly*100).toFixed(1)}%)` : `NO BET`;
+                    el.style.color = aKelly >= 0.05 ? '#e74c3c' : (aKelly > 0 ? '#f39c12' : '#777');
+                }
+            }
+            if(document.getElementById(`win-opp-${i}`)) {
+                document.getElementById(`win-opp-${i}`).innerText = `+€${winOpp.toFixed(2)}`;
+                const el = document.getElementById(`kelly-opp-${i}`);
+                if(el){
+                    el.innerText = oKelly > 0 ? `Stake: € ${stakeOpp.toFixed(2)} (${(oKelly*100).toFixed(1)}%)` : `NO BET`;
+                    el.style.color = oKelly >= 0.05 ? '#e74c3c' : (oKelly > 0 ? '#f39c12' : '#777');
+                }
+            }
+            
+            const cb = document.getElementById(`check-${i}`);
+            if(cb && cb.checked) {
+                document.getElementById(`card-${i}`).classList.add('selected-card');
+                // Scegli il lato con la vera "Value Bet"
+                if (aKelly >= oKelly && aKelly > 0) {
+                    totalBet += stakeAzz; totalProfit += winAzz;
+                } else if (oKelly > aKelly && oKelly > 0) {
+                    totalBet += stakeOpp; totalProfit += winOpp;
+                }
+                count++;
+            } else if(document.getElementById(`card-${i}`)) {
+                document.getElementById(`card-${i}`).classList.remove('selected-card');
+            }
+        });
+        
+        document.getElementById('total-profit').innerText = `+ € ${totalProfit.toFixed(2)}`;
+        document.getElementById('roi-val').innerText = `${totalBet > 0 ? ((totalProfit/totalBet)*100).toFixed(1) : 0}%`;
+        document.getElementById('selection-count').innerText = `${count} Match Attivi | Inv. - € ${totalBet.toFixed(2)}`;
+    }
+
+    async function saveBets() {
+        const bankroll = parseFloat(document.getElementById('bankroll').value) || 0;
+        const betsToSave = [];
+        
+        matches.forEach((m, i) => {
+            const cb = document.getElementById(`check-${i}`);
+            if (cb && cb.checked) {
+                let aProb = parseFloat(m.azz_prob) / 100;
+                let aOddDec = parseFloat(m.market_odd);
+                let aB = aOddDec - 1;
+                let aKelly = Math.max(0, Math.min(aB > 0 ? ((aB * aProb) - (1-aProb)) / aB : 0, 0.05));
+                let stakeAzz = bankroll * aKelly;
+
+                let oProb = (100 - parseFloat(m.azz_prob)) / 100;
+                let oOddDec = parseFloat(m.opening_odd);
+                let oB = oOddDec - 1;
+                let oKelly = Math.max(0, Math.min(oB > 0 ? ((oB * oProb) - (1-oProb)) / oB : 0, 0.05));
+                let stakeOpp = bankroll * oKelly;
+
+                let selection = "";
+                let market_odd = 0, probability = 0, roi = 0, stake_euro = 0, expected_profit = 0;
+
+                if (aKelly >= oKelly && aKelly > 0) {
+                    selection = m.azzurro;
+                    market_odd = aOddDec;
+                    probability = (aProb*100).toFixed(1);
+                    roi = m.azz_roi;
+                    stake_euro = stakeAzz.toFixed(2);
+                    expected_profit = ((stakeAzz * aOddDec) - stakeAzz).toFixed(2);
+                } else if (oKelly > aKelly && oKelly > 0) {
+                    selection = m.avversario;
+                    market_odd = oOddDec;
+                    probability = (oProb*100).toFixed(1);
+                    roi = m.opp_roi;
+                    stake_euro = stakeOpp.toFixed(2);
+                    expected_profit = ((stakeOpp * oOddDec) - stakeOpp).toFixed(2);
+                }
+
+                if (selection) {
+                    betsToSave.push({
+                        match_date: m.target_date, 
+                        azzurro: m.azzurro, 
+                        avversario: m.avversario, 
+                        selection, 
+                        market_odd, 
+                        probability, 
+                        roi, 
+                        stake_euro, 
+                        expected_profit
+                    });
+                }
+            }
+        });
+
+        if (betsToSave.length === 0) {
+            alert("Nessuna Value Bet selezionata da salvare, oppure la quota è in perdita (NO BET).");
+            return;
+        }
+
+        const nota = prompt("Vuoi aggiungere una nota storica a questa selezione di giocate? (Lascia vuoto se nessuna)");
+        if (nota === null) return; // User annulla salvataggio
+
+        try {
+            const btn = document.querySelector('button[onclick="saveBets()"]');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳...";
+            const res = await fetch(`${API_URL}/api/save-bets`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bets: betsToSave, note: nota })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`Hai salvato nel tuo storico ${betsToSave.length} scommesse validamente!`);
+            } else {
+                alert("Errore salvataggio: " + data.error);
+            }
+            btn.innerText = originalText;
+        } catch (e) {
+            alert("Errore linea API (Backend server).");
+        }
+    }
+
+    document.getElementById('datePicker').valueAsDate = new Date();
+    loadData();
+</script>
+</body>
+</html>
