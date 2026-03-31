@@ -1,5 +1,5 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const cors = require('cors'); 
 const axios = require('axios');
 const path = require('path');
@@ -16,50 +16,49 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// SQLITE DATABASE CONNECTION (PORTABLE FILE)
+// SQLITE DATABASE CONNECTION (PORTABLE FILE) - better-sqlite3
 const dbPath = path.join(__dirname, 'tennis_db.sqlite');
-const db = new sqlite3.Database(dbPath);
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
-// Helper to promisify DB calls
-const dbQuery = (sql, params = []) => new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
-});
-const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) { err ? reject(err) : resolve({ id: this.lastID, changes: this.changes }); });
-});
-const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
-});
+// Helper sincroni wrappati in async per compatibilità con il resto del codice
+const dbQuery = async (sql, params = []) => db.prepare(sql).all(...params);
+const dbRun = async (sql, params = []) => {
+    const result = db.prepare(sql).run(...params);
+    return { id: result.lastInsertRowid, changes: result.changes };
+};
+const dbGet = async (sql, params = []) => db.prepare(sql).get(...params);
 
 // INITIALIZE DATABASE STRUCTURE
-async function setupDB() {
+function setupDB() {
     try {
-        await dbRun(`CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, lcn INTEGER UNIQUE, name TEXT NOT NULL, provider_type TEXT, is_tennis_active BOOLEAN DEFAULT 0)`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, ranking_live INTEGER, surface_win_rate DECIMAL(5,2), is_italian BOOLEAN DEFAULT 0)`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS matches (
+        db.exec(`CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, lcn INTEGER UNIQUE, name TEXT NOT NULL, provider_type TEXT, is_tennis_active BOOLEAN DEFAULT 0)`);
+        db.exec(`CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, ranking_live INTEGER, surface_win_rate DECIMAL(5,2), is_italian BOOLEAN DEFAULT 0)`);
+        db.exec(`CREATE TABLE IF NOT EXISTS matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT, player_it_id INTEGER, opponent_id INTEGER, channel_id INTEGER, 
             match_date TEXT NOT NULL, target_date TEXT, venue_city TEXT, temp INTEGER, humidity INTEGER, 
             wind INTEGER, weather_icon TEXT, tournament TEXT, match_round TEXT, surface TEXT, 
             market_odd DECIMAL(5,2), opening_odd DECIMAL(5,2), k_rate DECIMAL(5,3), home_rank INTEGER, away_rank INTEGER,
             home_score INTEGER, away_score INTEGER, status TEXT
         )`);
-        await dbRun(`ALTER TABLE matches ADD COLUMN home_score INTEGER`).catch(()=>{});
-        await dbRun(`ALTER TABLE matches ADD COLUMN away_score INTEGER`).catch(()=>{});
-        await dbRun(`ALTER TABLE matches ADD COLUMN status TEXT`).catch(()=>{});
+        try { db.exec(`ALTER TABLE matches ADD COLUMN home_score INTEGER`); } catch(e) {}
+        try { db.exec(`ALTER TABLE matches ADD COLUMN away_score INTEGER`); } catch(e) {}
+        try { db.exec(`ALTER TABLE matches ADD COLUMN status TEXT`); } catch(e) {}
         
         // AUTO-CLEANUP DUPLICATI (Phase 10)
-        await dbQuery(`DELETE FROM matches WHERE id NOT IN (SELECT MIN(id) FROM matches GROUP BY player_it_id, opponent_id, match_date)`).catch(()=>{});
+        try { db.exec(`DELETE FROM matches WHERE id NOT IN (SELECT MIN(id) FROM matches GROUP BY player_it_id, opponent_id, match_date)`); } catch(e) {}
         
-        await dbRun(`CREATE TABLE IF NOT EXISTS bets (
+        db.exec(`CREATE TABLE IF NOT EXISTS bets (
             id INTEGER PRIMARY KEY AUTOINCREMENT, match_date TEXT, azzurro TEXT, avversario TEXT, 
             selection TEXT, market_odd NUMERIC, probability NUMERIC, roi NUMERIC, 
             stake_euro NUMERIC, expected_profit NUMERIC, note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
-        console.log("🎾 SQLITE: Database pronto e portatile.");
+        console.log("🎾 SQLITE: Database pronto e portatile (better-sqlite3).");
     } catch (e) {
         console.error("❌ ERRORE SETUP DB:", e.message);
     }
 }
+
 setupDB();
 
 const TRACKED_PLAYERS = [
