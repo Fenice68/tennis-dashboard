@@ -296,8 +296,10 @@ app.get('/api/export-matches', async (req, res) => {
 });
 
 // --- 2. GESTIONE DELLA NAVIGAZIONE (FALLBACK) ---
-// CORREZIONE EXPRESS 5: Sostituito '*' con '/*' per risolvere il crash
-app.get('/*', (req, res) => {
+// CORREZIONE DEFINITIVA EXPRESS 5: 
+// L'uso di stringhe come '*' o '/*' genera un errore "Missing parameter name".
+// Per il catch-all route usiamo un'Espressione Regolare (Regex) per bypassare il problema.
+app.get(/.*/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
