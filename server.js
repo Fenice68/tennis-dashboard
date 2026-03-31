@@ -3,7 +3,7 @@ const Database = require('better-sqlite3');
 const cors = require('cors'); 
 const axios = require('axios');
 const path = require('path');
-const fs = require('fs'); // Aggiunto per permettere al server di leggere le cartelle
+const fs = require('fs');
 const http = require('http');
 
 const app = express();
@@ -11,21 +11,17 @@ app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE'] }));
 app.use(express.json());
 
 // --- 1. RICERCA AUTOMATICA DELLA CARTELLA ANGULAR ---
-// Questo blocco di codice fa il lavoro "sporco" per te.
-// Cerca in automatico la cartella corretta generata da Angular dentro "dist"
 let distPath = path.join(__dirname, 'dist'); 
 
 try {
     const baseDist = path.join(__dirname, 'dist');
     if (fs.existsSync(baseDist)) {
-        // Trova la prima sottocartella dentro dist (es. 'progetto-tennis')
         const cartelle = fs.readdirSync(baseDist, { withFileTypes: true })
                            .filter(dirent => dirent.isDirectory())
                            .map(dirent => dirent.name);
         
         if (cartelle.length > 0) {
             const nomeProgetto = cartelle[0];
-            // Angular 17+ spesso crea un'ulteriore cartella 'browser'
             const pathBrowser = path.join(baseDist, nomeProgetto, 'browser');
             if (fs.existsSync(pathBrowser)) {
                 distPath = pathBrowser;
@@ -38,9 +34,7 @@ try {
     console.log("⚠️ Attenzione: Non sono riuscito a scansionare la cartella dist.");
 }
 
-// Diciamo a Express di usare la cartella trovata automaticamente
 app.use(express.static(distPath));
-
 
 // --- SQLITE DATABASE CONNECTION ---
 const dbPath = path.join(__dirname, 'tennis_db.sqlite');
@@ -302,8 +296,8 @@ app.get('/api/export-matches', async (req, res) => {
 });
 
 // --- 2. GESTIONE DELLA NAVIGAZIONE (FALLBACK) ---
-// Gestisce l'errore Not Found: rimanda le richieste sconosciute ad Angular
-app.get('*', (req, res) => {
+// CORREZIONE EXPRESS 5: Sostituito '*' con '/*' per risolvere il crash
+app.get('/*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
