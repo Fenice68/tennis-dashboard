@@ -12,10 +12,12 @@ app.use(express.json());
 
 // --- 1. RICERCA AUTOMATICA DELLA CARTELLA ANGULAR ---
 let distPath = path.join(__dirname, 'dist'); 
+let isAngular = false;
 
 try {
     const baseDist = path.join(__dirname, 'dist');
     if (fs.existsSync(baseDist)) {
+        isAngular = true;
         const cartelle = fs.readdirSync(baseDist, { withFileTypes: true })
                            .filter(dirent => dirent.isDirectory())
                            .map(dirent => dirent.name);
@@ -34,7 +36,9 @@ try {
     console.log("⚠️ Attenzione: Non sono riuscito a scansionare la cartella dist.");
 }
 
-app.use(express.static(distPath));
+if (isAngular) {
+    app.use(express.static(distPath));
+}
 
 // --- SQLITE DATABASE CONNECTION ---
 const dbPath = path.join(__dirname, 'tennis_db.sqlite');
@@ -295,12 +299,31 @@ app.get('/api/export-matches', async (req, res) => {
     } catch (e) { res.status(500).send("Errore export"); }
 });
 
-// --- 2. GESTIONE DELLA NAVIGAZIONE (FALLBACK) ---
+// --- ROTTE DOWNLOAD FILE WORD ---
+app.get('/protocollo.docx', (req, res) => {
+    const file = path.join(__dirname, '..', 'Protocollo_Dashboard_Tennis_Italia_V5_1.docx');
+    if (fs.existsSync(file)) res.download(file, 'Protocollo_V5.1.docx'); else res.status(404).end();
+});
+app.get('/note.docx', (req, res) => {
+    const file = path.join(__dirname, '..', 'note progetto.docx');
+    if (fs.existsSync(file)) res.download(file, 'Note_Progetto.docx'); else res.status(404).end();
+});
+
+// --- 2. GESTIONE DELLA NAVIGAZIONE E ASSET (FALLBACK) ---
+app.get(/\.(jpg|jpeg|png|gif|ico|svg|txt|md|pdf|docx)$/i, (req, res) => {
+    const file = path.join(isAngular ? distPath : __dirname, decodeURIComponent(req.path));
+    if (fs.existsSync(file)) res.sendFile(file); else res.status(404).end();
+});
+
 // CORREZIONE DEFINITIVA EXPRESS 5: 
 // L'uso di stringhe come '*' o '/*' genera un errore "Missing parameter name".
 // Per il catch-all route usiamo un'Espressione Regolare (Regex) per bypassare il problema.
 app.get(/.*/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    if (isAngular) {
+        res.sendFile(path.join(distPath, 'index.html'));
+    } else {
+        res.sendFile(path.join(__dirname, 'index.html'));
+    }
 });
 
 const PORT = process.env.PORT || 5000;
@@ -318,6 +341,6 @@ server.on('error', (e) => {
 server.listen(PORT, () => {
     console.log(`\n##################################################`);
     console.log(`🎾 TENNIS PORTABLE V6.0: Attivo su porta ${PORT}`);
-    console.log(`📂 Cartella frontend agganciata automaticamente: ${distPath}`);
+    console.log(`📂 Cartella frontend: ${isAngular ? distPath : __dirname + " (Root HTML)"}`);
     console.log(`##################################################\n`);
 });

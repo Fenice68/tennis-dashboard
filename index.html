@@ -138,21 +138,76 @@
             opacity: 0.85;
             filter: saturate(0.5);
         }
+
+        /* --- RESPONSIVE MOBILE E TABLET (SOTTO I 1024px) --- */
+        @media (max-width: 1024px) {
+            body { 
+                overflow-y: auto; 
+                height: auto; 
+            }
+            .top-bar {
+                padding: 15px;
+                height: auto;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 15px;
+                text-align: center;
+            }
+            .logo-container { justify-content: center; width: 100%; }
+            .dashboard-grid { 
+                grid-template-columns: 1fr; 
+                height: auto; 
+                gap: 20px;
+                padding-bottom: 50px;
+            }
+            .panel {
+                border-right: none;
+                border-bottom: 2px solid var(--border);
+                border-radius: 12px;
+                margin: 0 10px;
+            }
+            .controls {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+            input, button { width: 100%; margin-top: 5px; }
+            #bankroll { width: 100px; }
+            .card-main {
+                grid-template-columns: 1fr;
+                gap: 15px;
+                align-items: center;
+            }
+            .player-info {
+                align-items: center !important;
+                text-align: center !important;width: 100%;
+            }
+            .center-meta { margin: 10px 0; order: -1; } /* Sposta info torneo in alto */
+            .vs-bar { display: none; }
+            .rank-tag { margin: 0 auto 10px auto; }
+            .scroll-area { overflow: visible; height: auto; }
+        }
     </style>
 </head>
 <body>
 
 <header class="top-bar">
     <div class="logo-container">
-        <img src="logo.png" alt="Logo" class="logo-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/811/811440.png'">
+        <img src="3 Fenice Logo.jpg" alt="Logo Fenice" class="logo-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/811/811440.png'">
         <div class="brand-name">
             COMMAND CENTER
             <span>TENNIS ANALYTICS V6.0</span>
         </div>
     </div>
     
-    <div style="display:flex; gap:20px; align-items:center;">
-        <div style="text-align:right;">
+    <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap; justify-content:center;">
+        <button class="doc-btn" style="color:#3498db !important" onclick="window.location.href='/protocollo.docx'">📘 PROTOCOLLO (WORD)</button>
+        <button class="doc-btn" style="color:#f39c12 !important" onclick="window.location.href='/note.docx'">📓 NOTE PROGETTO (WORD)</button>
+        <style>
+            .doc-btn { background: rgba(255,255,255,0.05) !important; color: var(--text-dim) !important; border: 1px solid var(--border) !important; font-size: 0.7em !important; padding: 6px 12px !important; border-radius: 6px !important; transition: all 0.3s ease; font-weight: 700 !important; cursor: pointer !important; }
+            .doc-btn:hover { background: rgba(255,255,255,0.1) !important; color: white !important; border-color: var(--tennis) !important; box-shadow: 0 0 10px rgba(220, 248, 54, 0.1); }
+        </style>
+        <div style="text-align:right; margin-left:10px;">
             <div style="font-size:0.6em; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px;">Stato Server</div>
             <div style="font-size:0.8em; font-weight:700; color:var(--success); display:flex; align-items:center; gap:6px;">
                 <div style="width:8px; height:8px; background:var(--success); border-radius:50%; box-shadow:0 0 10px var(--success)"></div>
